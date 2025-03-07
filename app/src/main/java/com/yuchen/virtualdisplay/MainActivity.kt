@@ -2,12 +2,8 @@ package com.yuchen.virtualdisplay
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.PixelFormat
 import android.media.projection.MediaProjectionManager
-import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,8 +14,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.tooling.preview.Preview
+import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomVirtualDisplayService
 import com.yuchen.virtualdisplay.ui.theme.VirtualDisplayTheme
 
 
@@ -103,7 +99,8 @@ class MainActivity : ComponentActivity() {
                 VirtualDisplayService.resultData = data
                 VirtualDisplayService.resultCode = resultCode
                 // start virtual display service
-                val virtualdisplay_intent = Intent(this, VirtualDisplayService::class.java)
+                //val virtualdisplay_intent = Intent(this, VirtualDisplayService::class.java)
+                val virtualdisplay_intent = Intent(this, CustomVirtualDisplayService::class.java)
                 val bundle = Bundle()
                 bundle.putInt("displayID", 0)
                 bundle.putInt("viewWidth", 960)

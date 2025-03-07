@@ -25,6 +25,12 @@
             android:foregroundServiceType="mediaProjection"
             android:enabled="true"
             android:exported="true"></service>
+        <service
+            android:name=".GLVirtualDisplay.CustomVirtualDisplayService"
+            android:permission="android.permission.FOREGROUND_SERVICE"
+            android:foregroundServiceType="mediaProjection"
+            android:enabled="true"
+            android:exported="true"></service>
 
         <activity
             android:name=".MainActivity"
