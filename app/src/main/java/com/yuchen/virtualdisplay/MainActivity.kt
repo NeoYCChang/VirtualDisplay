@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomVirtualDisplayService
 import com.yuchen.virtualdisplay.ui.theme.VirtualDisplayTheme
+import com.yuchen.virtualdisplay.AUOGLSurfaceView.AUOVirtualDisplayService
 
 
 class MainActivity : ComponentActivity() {
@@ -100,7 +102,8 @@ class MainActivity : ComponentActivity() {
                 VirtualDisplayService.resultCode = resultCode
                 // start virtual display service
                 //val virtualdisplay_intent = Intent(this, VirtualDisplayService::class.java)
-                val virtualdisplay_intent = Intent(this, CustomVirtualDisplayService::class.java)
+                //val virtualdisplay_intent = Intent(this, CustomVirtualDisplayService::class.java)
+                val virtualdisplay_intent = Intent(this, AUOVirtualDisplayService::class.java)
                 val bundle = Bundle()
                 bundle.putInt("displayID", 0)
                 bundle.putInt("viewWidth", 960)

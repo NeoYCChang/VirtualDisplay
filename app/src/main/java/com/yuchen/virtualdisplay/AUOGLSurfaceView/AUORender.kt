@@ -1,32 +1,30 @@
-package com.yuchen.virtualdisplay.GLVirtualDisplay
+package com.yuchen.virtualdisplay.AUOGLSurfaceView
 
 import android.content.Context
 import android.content.res.Resources
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
-import android.opengl.GLSurfaceView
 import android.util.Log
-import android.view.Surface
+import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomRenderCallback
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
+class AUORender : AUOGLSurfaceView.EGLRender {
 
-interface CustomRenderCallback {
-    fun onSurfaceCreatedCallback()
-    fun onDrawFrameCallback()
-}
+    interface AUORenderCallback {
+        fun onSurfaceCreatedCallback()
+        fun onDrawFrameCallback()
+    }
 
-// Define a class that implements GLSurfaceView.Renderer
-class CustomRender : GLSurfaceView.Renderer {
-
-    private var customRenderCallback: CustomRenderCallback? = null
+    private var m_AUORenderCallback: AUORenderCallback? = null
     private var mProgram: Int = 0
     private var m_context: Context? = null
     private var m_positionHandle: Int = 0
     private var m_texCoordHandle: Int = 0
     private var mTextureID: Int  = -1
+    private val m_tag = "AUORender"
     // Set up shaders and program (vertex shader and fragment shader)
 
 
@@ -35,7 +33,7 @@ class CustomRender : GLSurfaceView.Renderer {
         mTextureID = textureid
     }
 
-    override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
+    override fun onSurfaceCreated() {
         //GLES20.glEnable(GLES20.GL_TEXTURE_2D);
         // Initialize OpenGL settings (e.g., set the background color)
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // Set background color to black
@@ -43,34 +41,34 @@ class CustomRender : GLSurfaceView.Renderer {
         if(mTextureID  == -1){
             mTextureID = createOESTextureObject()
         }
-        customRenderCallback?.onSurfaceCreatedCallback()
+        m_AUORenderCallback?.onSurfaceCreatedCallback()
         createProgram(m_context!!.resources, "shader/vertex.glsl", "shader/fragment.glsl")
         activeHandle()
     }
 
-    override fun onSurfaceChanged(p0: GL10?, width: Int, height: Int) {
+    override fun onSurfaceChanged(width: Int, height: Int) {
         // Adjust the viewport based on the new surface size
         GLES20.glViewport(0, 0, width, height)
     }
 
     // Implement the onDrawFrame() method
-    override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10?) {
+    override fun onDrawFrame() {
         // Clear the screen with the background color
         activeProgram()
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // Set background color to black
-        customRenderCallback?.onDrawFrameCallback()
+        m_AUORenderCallback?.onDrawFrameCallback()
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, mTextureID)
         // Your OpenGL rendering code goes here
-        Log.d("onDrawFrame", "onDrawFrame")
+        Log.d(m_tag, "onDrawFrame")
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
 
         GLES20.glFinish();
     }
 
-    fun setCustomRenderCallback(callback: CustomRenderCallback) {
-        customRenderCallback = callback
+    fun setCustomRenderCallback(callback: AUORenderCallback) {
+        m_AUORenderCallback = callback
     }
 
     private fun createProgram(res: Resources, vertexResPath: String, fragmentResPath: String) {
@@ -137,10 +135,10 @@ class CustomRender : GLSurfaceView.Renderer {
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)
         if (compiled[0] == 0) {
             Log.e(
-                "test", ("Could not compile shader:" + shader
+                m_tag, ("Could not compile shader:" + shader
                         + " type = " + (if (type == GLES20.GL_VERTEX_SHADER) "GL_VERTEX_SHADER" else "GL_FRAGMENT_SHADER"))
             )
-            Log.e("test", "GLES20 Error:" + GLES20.glGetShaderInfoLog(shader))
+            Log.e(m_tag, "GLES20 Error:" + GLES20.glGetShaderInfoLog(shader))
             GLES20.glDeleteShader(shader)
             shader = 0
         }
@@ -217,7 +215,7 @@ class CustomRender : GLSurfaceView.Renderer {
             GL10.GL_TEXTURE_WRAP_T, GL10.GL_CLAMP_TO_EDGE.toFloat()
         )
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
-        Log.e("test1", tex[0].toString())
+        Log.d(m_tag, "createOESTextureObject")
         return tex[0]
     }
 }

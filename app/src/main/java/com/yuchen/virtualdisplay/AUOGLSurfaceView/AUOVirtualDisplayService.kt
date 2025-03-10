@@ -1,4 +1,4 @@
-package com.yuchen.virtualdisplay.GLVirtualDisplay
+package com.yuchen.virtualdisplay.AUOGLSurfaceView
 
 import android.R.attr.name
 import android.annotation.SuppressLint
@@ -14,28 +14,26 @@ import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.opengl.GLSurfaceView
-import android.opengl.GLSurfaceView.RENDERMODE_WHEN_DIRTY
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.Gravity
-import android.view.Surface
 import android.view.WindowManager
-import com.yuchen.virtualdisplay.VirtualDisplayService
-import com.yuchen.virtualdisplay.VirtualDisplayService.Companion
 
 
-class CustomVirtualDisplayService : Service() {
+class AUOVirtualDisplayService : Service() {
 
     private var m_MediaProjection: MediaProjection? = null
     private var m_virtual_display: VirtualDisplay? = null
     private var m_displayWindowManager: WindowManager? = null
     private val MEDIA_PROJECTION_CALLBACK: MediaProjection.Callback = object : MediaProjection.Callback() {}
-    private var m_CustomGLSurfaceView: CustomGLSurfaceView? = null
+    private var m_AUOGLSurfaceView: AUOGLSurfaceView? = null
+    private var m_AUOGLSurfaceView2: AUOGLSurfaceView? = null
     val m_isMirror: Boolean = false
 
     companion object {
@@ -47,7 +45,6 @@ class CustomVirtualDisplayService : Service() {
     override fun onCreate() {
         super.onCreate()
         startMediaProjectionForeground()
-
         //  mirror primary display
         if(m_isMirror) {
             val MEDIA_PROJECTION_MANAGER =
@@ -78,34 +75,53 @@ class CustomVirtualDisplayService : Service() {
         val dm = DisplayMetrics()
         wm.getDefaultDisplay().getRealMetrics(dm)
 
-        m_CustomGLSurfaceView = CustomGLSurfaceView(
+        m_AUOGLSurfaceView = AUOGLSurfaceView(
             this,
             -1,
             null,
             viewwidth,
             viewheight
         )
+        val context = this
+        val mainHandler = Handler(Looper.getMainLooper())
 
-        val customGLSurfaceViewCallback = object : CustomGLSurfaceViewCallback {
+        // this callback will be invoked after m_AUOGLSurfaceView has been initialized
+        val AUOGLSurfaceViewCallback = object : AUOGLSurfaceView.AUOGLSurfaceViewCallback {
             override fun onSurfaceCreatedCallback() {
                 m_virtual_display = display_manager.createVirtualDisplay(
                     "testvirtual",
                     viewwidth,
                     viewheight,
                     dm.densityDpi,
-                    m_CustomGLSurfaceView?.getSurface(),
+                    m_AUOGLSurfaceView?.getSurfceOfTexture(),
                     0
                 )
-                val displayContext: Context = createDisplayContext(m_virtual_display!!.display)
-                val MEDIA_PROJECTION_MANAGER = displayContext.getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                m_MediaProjection =
-                    VirtualDisplayService.resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(
-                        VirtualDisplayService.resultCode, it) }
-
+                // create a second view mirrored by m_AUOGLSurfaceView
+                m_AUOGLSurfaceView2 = AUOGLSurfaceView(
+                    context,
+                    m_AUOGLSurfaceView!!.getTextureID(),
+                    m_AUOGLSurfaceView?.getAUOSurfaceTexture(),
+                    viewwidth,
+                    viewheight
+                )
+                if(m_AUOGLSurfaceView != null)
+                {
+                    Log.d("AUOVirtualDisplayService",  "m_AUOGLSurfaceView == null")
+                }
+                m_AUOGLSurfaceView2?.setSurfaceAndEglContext(null, m_AUOGLSurfaceView?.getEglContext())
+                mainHandler.post {
+                    // Display a second view on display:2
+                    val display : Display = display_manager.getDisplay(2)
+                    val displayContext: Context = createDisplayContext(display)
+                    val displayWindowManager = displayContext.getSystemService(WINDOW_SERVICE) as WindowManager
+                    val PROJECTION_VIEW_PARAMS: WindowManager.LayoutParams = newLayoutParams()
+                    PROJECTION_VIEW_PARAMS.width = viewwidth
+                    PROJECTION_VIEW_PARAMS.height = viewheight
+                    displayWindowManager!!.addView(m_AUOGLSurfaceView2, PROJECTION_VIEW_PARAMS)
+                }
             }
         }
-        m_CustomGLSurfaceView?.setCustomGLSurfaceViewCallback(customGLSurfaceViewCallback)
-
+        m_AUOGLSurfaceView?.setAUOGLSurfaceViewCallback(AUOGLSurfaceViewCallback)
 
 
 
@@ -128,7 +144,8 @@ class CustomVirtualDisplayService : Service() {
         val PROJECTION_VIEW_PARAMS: WindowManager.LayoutParams = newLayoutParams()
         PROJECTION_VIEW_PARAMS.width = viewwidth
         PROJECTION_VIEW_PARAMS.height = viewheight
-        m_displayWindowManager!!.addView(m_CustomGLSurfaceView, PROJECTION_VIEW_PARAMS)
+        //After m_AUOGLSurfaceView is added to m_displayWindowManager, m_AUOGLSurfaceView will begin initialization.
+        m_displayWindowManager!!.addView(m_AUOGLSurfaceView, PROJECTION_VIEW_PARAMS)
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -143,7 +160,7 @@ class CustomVirtualDisplayService : Service() {
         MEDIA_PROJECTION_CALLBACK?.let { m_MediaProjection?.unregisterCallback(it) };
         m_MediaProjection?.stop();
         m_MediaProjection = null;
-        m_displayWindowManager?.removeViewImmediate(m_CustomGLSurfaceView)
+        m_displayWindowManager?.removeViewImmediate(m_AUOGLSurfaceView)
         this.stopForeground(true)
     }
 

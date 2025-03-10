@@ -31,6 +31,12 @@
             android:foregroundServiceType="mediaProjection"
             android:enabled="true"
             android:exported="true"></service>
+        <service
+            android:name=".AUOGLSurfaceView.AUOVirtualDisplayService"
+            android:permission="android.permission.FOREGROUND_SERVICE"
+            android:foregroundServiceType="mediaProjection"
+            android:enabled="true"
+            android:exported="true"></service>
 
         <activity
             android:name=".MainActivity"

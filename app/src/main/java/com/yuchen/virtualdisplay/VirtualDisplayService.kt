@@ -31,7 +31,14 @@ class VirtualDisplayService : Service() {
     private var m_virtual_display: VirtualDisplay? = null
     private var m_projection_view: VirtualView? = null
     private var m_displayWindowManager: WindowManager? = null
-    private val MEDIA_PROJECTION_CALLBACK: MediaProjection.Callback = object : MediaProjection.Callback() {}
+    private val MEDIA_PROJECTION_CALLBACK: MediaProjection.Callback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            super.onStop()
+            // Handle media projection stop here
+            m_virtual_display?.release()
+            m_virtual_display = null
+        }
+    }
     val m_isMirror: Boolean = true
 
     companion object {
@@ -45,12 +52,7 @@ class VirtualDisplayService : Service() {
         startMediaProjectionForeground()
 
         //  mirror primary display
-        if(m_isMirror) {
-            val MEDIA_PROJECTION_MANAGER =
-                getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            m_MediaProjection =
-                resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(resultCode, it) }
-        }
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -58,6 +60,14 @@ class VirtualDisplayService : Service() {
         val viewWidth = bundle?.getInt("viewWidth")
         val viewHeight = bundle?.getInt("viewHeight")
         val displayID = bundle?.getInt("displayID")
+
+        if(m_isMirror) {
+            val MEDIA_PROJECTION_MANAGER =
+                getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            m_MediaProjection =
+                resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(resultCode, it) }
+            m_MediaProjection?.registerCallback(MEDIA_PROJECTION_CALLBACK, null)
+        }
 
 
         if (viewWidth != null && viewHeight != null && displayID != null) {

@@ -4,6 +4,8 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.Surface
 
+//https://blog.csdn.net/yu540135101/article/details/102880518
+//https://blog.csdn.net/yu540135101/article/details/102938330
 interface CustomGLSurfaceViewCallback {
     fun onSurfaceCreatedCallback()
 }
@@ -17,6 +19,7 @@ class CustomGLSurfaceView(context: Context, textureid : Int, surfaseTexture: Cus
 
     companion object {
         // Static-like function
+        var index: Int = 0
     }
 
     init {
@@ -28,13 +31,15 @@ class CustomGLSurfaceView(context: Context, textureid : Int, surfaseTexture: Cus
 
         val drawFrameCallback = object : CustomRenderCallback {
             override fun onSurfaceCreatedCallback() {
-                if(surfaseTexture == null) {
+                if(surfaseTexture == null && m_SurfaseTexture == null) {
+                    Log.d("test","debug1")
                     m_SurfaseTexture = CustomSurfaceTexture(m_CustomRender!!.getTexture())
                     m_SurfaseTexture?.addListener { glSurfaceView.requestRender() }
                     m_SurfaseTexture?.setDefaultBufferSize(width, height)
                     m_Surface = Surface(m_SurfaseTexture)
                 }
                 else{
+                    Log.d("test","debug2")
                     m_SurfaseTexture = surfaseTexture
                     m_SurfaseTexture?.addListener { glSurfaceView.requestRender() }
                 }
