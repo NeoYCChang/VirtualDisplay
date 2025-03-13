@@ -6,8 +6,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -23,6 +25,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 
 
@@ -30,11 +33,29 @@ class AUOVirtualDisplayService : Service() {
 
     private var m_MediaProjection: MediaProjection? = null
     private var m_virtual_display: VirtualDisplay? = null
-    private var m_displayWindowManager: WindowManager? = null
     private val MEDIA_PROJECTION_CALLBACK: MediaProjection.Callback = object : MediaProjection.Callback() {}
-    private var m_AUOGLSurfaceView: AUOGLSurfaceView? = null
-    private var m_AUOGLSurfaceView2: AUOGLSurfaceView? = null
+    private val m_AUOGLSurfaceViews = mutableMapOf<WindowManager, ArrayList<AUOGLSurfaceView?>>()
+    private var m_PrimarySurfaceView: AUOGLSurfaceView? = null
     val m_isMirror: Boolean = false
+    private val m_tag = "AUOVirtualDisplayService"
+    private val m_dataReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            var primary = intent.getBooleanExtra("primary", false)
+            var displayID = intent.getIntExtra("displayID", -1)
+            var viewWidth = intent.getIntExtra("viewWidth", 960)
+            var viewHeight = intent.getIntExtra("viewHeight", 540)
+            var viewX = intent.getIntExtra("viewX", 0)
+            var viewY = intent.getIntExtra("viewY", 0)
+            if(primary){
+                createProjectionVirtualDisplay(displayID, viewWidth, viewHeight, viewX, viewY)
+            }
+            else
+            {
+                createProjectionVirtualView(displayID, viewWidth, viewHeight, viewX, viewY)
+            }
+
+        }
+    }
 
     companion object {
         // static variable
@@ -44,6 +65,8 @@ class AUOVirtualDisplayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        val filter = IntentFilter("com.yuchen.virtualdisplay.UPDATE_DATA")
+        registerReceiver(m_dataReceiver, filter, Context.RECEIVER_EXPORTED)
         startMediaProjectionForeground()
         //  mirror primary display
         if(m_isMirror) {
@@ -60,22 +83,22 @@ class AUOVirtualDisplayService : Service() {
         val viewHeight = bundle?.getInt("viewHeight")
         val displayID = bundle?.getInt("displayID")
 
-        if (viewWidth != null && viewHeight != null && displayID != null) {
-            createProjectionVirtualDisplay(displayID, viewWidth, viewHeight)
-        }
-        else{
-            createProjectionVirtualDisplay(0, 960, 540)
-        }
+//        if (viewWidth != null && viewHeight != null && displayID != null) {
+//            createProjectionVirtualDisplay(displayID, viewWidth, viewHeight)
+//        }
+//        else{
+//            createProjectionVirtualDisplay(0, 960, 540)
+//        }
         return super.onStartCommand(intent, flags, startId)
     }
 
-    fun createProjectionVirtualDisplay(displayid: Int, viewwidth: Int, viewheight: Int) {
+    fun createProjectionVirtualDisplay(displayid: Int, viewwidth: Int, viewheight: Int, viewx: Int, viewy: Int) {
         val display_manager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val dm = DisplayMetrics()
         wm.getDefaultDisplay().getRealMetrics(dm)
 
-        m_AUOGLSurfaceView = AUOGLSurfaceView(
+        m_PrimarySurfaceView = AUOGLSurfaceView(
             this,
             -1,
             null,
@@ -93,35 +116,35 @@ class AUOVirtualDisplayService : Service() {
                     viewwidth,
                     viewheight,
                     dm.densityDpi,
-                    m_AUOGLSurfaceView?.getSurfceOfTexture(),
+                    m_PrimarySurfaceView?.getSurfceOfTexture(),
                     0
                 )
                 // create a second view mirrored by m_AUOGLSurfaceView
-                m_AUOGLSurfaceView2 = AUOGLSurfaceView(
-                    context,
-                    m_AUOGLSurfaceView!!.getTextureID(),
-                    m_AUOGLSurfaceView?.getAUOSurfaceTexture(),
-                    viewwidth,
-                    viewheight
-                )
-                if(m_AUOGLSurfaceView != null)
-                {
-                    Log.d("AUOVirtualDisplayService",  "m_AUOGLSurfaceView == null")
-                }
-                m_AUOGLSurfaceView2?.setSurfaceAndEglContext(null, m_AUOGLSurfaceView?.getEglContext())
-                mainHandler.post {
-                    // Display a second view on display:2
-                    val display : Display = display_manager.getDisplay(2)
-                    val displayContext: Context = createDisplayContext(display)
-                    val displayWindowManager = displayContext.getSystemService(WINDOW_SERVICE) as WindowManager
-                    val PROJECTION_VIEW_PARAMS: WindowManager.LayoutParams = newLayoutParams()
-                    PROJECTION_VIEW_PARAMS.width = viewwidth
-                    PROJECTION_VIEW_PARAMS.height = viewheight
-                    displayWindowManager!!.addView(m_AUOGLSurfaceView2, PROJECTION_VIEW_PARAMS)
-                }
+//                m_AUOGLSurfaceView2 = AUOGLSurfaceView(
+//                    context,
+//                    m_AUOGLSurfaceView!!.getTextureID(),
+//                    m_AUOGLSurfaceView?.getAUOSurfaceTexture(),
+//                    viewwidth,
+//                    viewheight
+//                )
+//                if(m_AUOGLSurfaceView != null)
+//                {
+//                    Log.d("AUOVirtualDisplayService",  "m_AUOGLSurfaceView == null")
+//                }
+//                m_AUOGLSurfaceView2?.setSurfaceAndEglContext(null, m_AUOGLSurfaceView?.getEglContext())
+//                mainHandler.post {
+//                    // Display a second view on display:2
+//                    val display : Display = display_manager.getDisplay(0)
+//                    val displayContext: Context = createDisplayContext(display)
+//                    val displayWindowManager = displayContext.getSystemService(WINDOW_SERVICE) as WindowManager
+//                    val PROJECTION_VIEW_PARAMS: WindowManager.LayoutParams = newLayoutParams()
+//                    PROJECTION_VIEW_PARAMS.width = viewwidth
+//                    PROJECTION_VIEW_PARAMS.height = viewheight
+//                    displayWindowManager!!.addView(m_AUOGLSurfaceView2, PROJECTION_VIEW_PARAMS)
+//                }
             }
         }
-        m_AUOGLSurfaceView?.setAUOGLSurfaceViewCallback(AUOGLSurfaceViewCallback)
+        m_PrimarySurfaceView?.setAUOGLSurfaceViewCallback(AUOGLSurfaceViewCallback)
 
 
 
@@ -140,12 +163,77 @@ class AUOVirtualDisplayService : Service() {
 //        }
         val display : Display = display_manager.getDisplay(displayid)
         val displayContext: Context = createDisplayContext(display)
-        m_displayWindowManager = displayContext.getSystemService(WINDOW_SERVICE) as WindowManager
+        val displayWindowManager = displayContext.getSystemService(WINDOW_SERVICE) as WindowManager
         val PROJECTION_VIEW_PARAMS: WindowManager.LayoutParams = newLayoutParams()
         PROJECTION_VIEW_PARAMS.width = viewwidth
         PROJECTION_VIEW_PARAMS.height = viewheight
+        PROJECTION_VIEW_PARAMS.x = viewx
+        PROJECTION_VIEW_PARAMS.y = viewy
+
         //After m_AUOGLSurfaceView is added to m_displayWindowManager, m_AUOGLSurfaceView will begin initialization.
-        m_displayWindowManager!!.addView(m_AUOGLSurfaceView, PROJECTION_VIEW_PARAMS)
+        displayWindowManager!!.addView(m_PrimarySurfaceView, PROJECTION_VIEW_PARAMS)
+        if( m_AUOGLSurfaceViews[displayWindowManager] == null) {
+            m_AUOGLSurfaceViews[displayWindowManager] = ArrayList<AUOGLSurfaceView?>()
+            m_AUOGLSurfaceViews[displayWindowManager]!!.add(m_PrimarySurfaceView)
+        }
+        else
+        {
+            m_AUOGLSurfaceViews[displayWindowManager]!!.add(m_PrimarySurfaceView)
+        }
+    }
+
+    fun createProjectionVirtualView(displayid: Int, viewwidth: Int, viewheight: Int, viewx: Int, viewy: Int) {
+        val display_manager = getSystemService(DISPLAY_SERVICE) as DisplayManager
+        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val dm = DisplayMetrics()
+        wm.getDefaultDisplay().getRealMetrics(dm)
+
+        var AUOGLSurfaceView : AUOGLSurfaceView? = null
+
+        if(m_PrimarySurfaceView == null)
+        {
+            Log.d(m_tag,"create VirtualView without m_PrimarySurfaceView")
+            AUOGLSurfaceView = AUOGLSurfaceView(
+                this,
+                -1,
+                null,
+                viewwidth,
+                viewheight
+            )
+        }
+        else
+        {
+            Log.d(m_tag,"create VirtualView with m_PrimarySurfaceView")
+            AUOGLSurfaceView = AUOGLSurfaceView(
+                this,
+                m_PrimarySurfaceView!!.getTextureID(),
+                m_PrimarySurfaceView?.getAUOSurfaceTexture(),
+                viewwidth,
+                viewheight
+            )
+            AUOGLSurfaceView?.setSurfaceAndEglContext(null, m_PrimarySurfaceView?.getEglContext())
+        }
+
+
+        val display : Display = display_manager.getDisplay(displayid)
+        val displayContext: Context = createDisplayContext(display)
+        val displayWindowManager = displayContext.getSystemService(WINDOW_SERVICE) as WindowManager
+        val PROJECTION_VIEW_PARAMS: WindowManager.LayoutParams = newLayoutParams()
+        PROJECTION_VIEW_PARAMS.width = viewwidth
+        PROJECTION_VIEW_PARAMS.height = viewheight
+        PROJECTION_VIEW_PARAMS.x = viewx
+        PROJECTION_VIEW_PARAMS.y = viewy
+
+        //After m_AUOGLSurfaceView is added to m_displayWindowManager, m_AUOGLSurfaceView will begin initialization.
+        displayWindowManager!!.addView(AUOGLSurfaceView, PROJECTION_VIEW_PARAMS)
+        if( m_AUOGLSurfaceViews[displayWindowManager] == null) {
+            m_AUOGLSurfaceViews[displayWindowManager] = ArrayList<AUOGLSurfaceView?>()
+            m_AUOGLSurfaceViews[displayWindowManager]!!.add(AUOGLSurfaceView)
+        }
+        else
+        {
+            m_AUOGLSurfaceViews[displayWindowManager]!!.add(AUOGLSurfaceView)
+        }
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -160,7 +248,14 @@ class AUOVirtualDisplayService : Service() {
         MEDIA_PROJECTION_CALLBACK?.let { m_MediaProjection?.unregisterCallback(it) };
         m_MediaProjection?.stop();
         m_MediaProjection = null;
-        m_displayWindowManager?.removeViewImmediate(m_AUOGLSurfaceView)
+        for ((window, views) in m_AUOGLSurfaceViews) {
+            Log.d("removeViewImmediate","removeViewImmediate")
+            views.forEach{ view ->
+                window.removeViewImmediate(view)
+                Log.d("removeViewImmediate","removeViewImmediate")
+            }
+        }
+        unregisterReceiver(m_dataReceiver)
         this.stopForeground(true)
     }
 

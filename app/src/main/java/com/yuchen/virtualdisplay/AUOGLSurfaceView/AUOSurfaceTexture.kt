@@ -18,7 +18,7 @@ class AUOSurfaceTexture(textureId: Int) : SurfaceTexture(textureId) {
         setOnFrameAvailableListener(object : SurfaceTexture.OnFrameAvailableListener {
             override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) {
                 triggerEvent();
-                Log.d("MainActivity", "Frame available: processing frame")
+                //Log.d("MainActivity", "Frame available: processing frame")
             }
         })
     }
@@ -30,7 +30,7 @@ class AUOSurfaceTexture(textureId: Int) : SurfaceTexture(textureId) {
 
     // Trigger the event (calls all listeners)
     fun triggerEvent() {
-        Log.d(m_tag,"triggerEvent")
+        //Log.d(m_tag,"triggerEvent")
         listeners.forEach { it() }
     }
 

@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomGLSurfaceViewCallback
 import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomRender
 import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomRenderCallback
@@ -73,7 +74,7 @@ class AUOGLSurfaceView @JvmOverloads constructor(
 
     fun requestRender() {
         if (eglThread != null) {
-            Log.d(m_tag,"requestRender")
+            //Log.d(m_tag,"requestRender")
             eglThread!!.requestRender()
         }
     }
@@ -92,6 +93,7 @@ class AUOGLSurfaceView @JvmOverloads constructor(
     fun getAUOSurfaceTexture() : AUOSurfaceTexture?{
         return m_SurfaseTexture
     }
+
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (surface == null) {
@@ -123,7 +125,7 @@ class AUOGLSurfaceView @JvmOverloads constructor(
             override fun onDrawFrameCallback() {
                 if(m_SurfaseTexture_createdByThis) {
                     m_SurfaseTexture?.updateTexImage()
-                    Log.d(m_tag, "onDrawFrameCallback")
+                    //Log.d(m_tag, "onDrawFrameCallback")
                 }
             }
         }
@@ -174,7 +176,6 @@ class AUOGLSurfaceView @JvmOverloads constructor(
         var isCreate: Boolean = false
         var isChange: Boolean = false
         private var isStart = false
-        private var m_need_to_render_queue: Boolean = false
 
         // Used to control manual refresh
         private var `object`: Any? = null
@@ -200,43 +201,28 @@ class AUOGLSurfaceView @JvmOverloads constructor(
                 /**
                  * Refresh modes
                  */
-                //if (isStart) {
-                    if (myGlSurfaceViewWeakReference!!.get()!!.renderMode == RenderMode.RENDERMODE_WHEN_DIRTY) {
-                        if(m_need_to_render_queue)
-                        {
-                            m_need_to_render_queue = false
-                            onChange(width, height)
-                            onDraw()
-                            isStart = true
-                        }
-                        else
-                        {
-                            try {
-                                sleep((1000 / 60).toLong())
-                            } catch (e: InterruptedException) {
-                                e.printStackTrace()
-                            }
-                        }
-
-//                        synchronized(`object`!!) {
-//                            try {
-//                                (`object` as Object).wait()
-//                            } catch (e: InterruptedException) {
-//                                e.printStackTrace()
-//                            }
-//                        }
-                    } else if (myGlSurfaceViewWeakReference!!.get()!!.renderMode == RenderMode.RENDERMODE_CONTINUOUSLY) {
-                        // Auto refresh, 60 frames per second
+                if (myGlSurfaceViewWeakReference!!.get()!!.renderMode == RenderMode.RENDERMODE_WHEN_DIRTY) {
+                    synchronized(`object`!!) {
                         try {
-                            sleep((1000 / 60).toLong())
+                            (`object` as Object).wait((1000 / 60).toLong())
                         } catch (e: InterruptedException) {
                             e.printStackTrace()
                         }
-                        onChange(width, height)
-                        onDraw()
-                        isStart = true
                     }
-                //}
+                    onChange(width, height)
+                    onDraw()
+                    isStart = true
+                } else if (myGlSurfaceViewWeakReference!!.get()!!.renderMode == RenderMode.RENDERMODE_CONTINUOUSLY) {
+                    // Auto refresh, 60 frames per second
+                    try {
+                        sleep((1000 / 60).toLong())
+                    } catch (e: InterruptedException) {
+                        e.printStackTrace()
+                    }
+                    onChange(width, height)
+                    onDraw()
+                    isStart = true
+                }
             }
         }
 
@@ -269,7 +255,7 @@ class AUOGLSurfaceView @JvmOverloads constructor(
         private fun onDraw() {
             if (myGlSurfaceViewWeakReference!!.get()!!.m_AUORender != null && eglHelper != null) {
                 myGlSurfaceViewWeakReference!!.get()!!.m_AUORender!!.onDrawFrame()
-                //第一次刷新的时候，需要刷新两次
+                //The first time you refresh, you need to refresh twice.
                 if (!isStart) {
                     myGlSurfaceViewWeakReference!!.get()!!.m_AUORender!!.onDrawFrame()
                 }
@@ -283,12 +269,10 @@ class AUOGLSurfaceView @JvmOverloads constructor(
          */
         internal fun requestRender() {
             if (`object` != null) {
-                m_need_to_render_queue = true
-//                synchronized(`object`!!) {
-//                    myGlSurfaceViewWeakReference!!.get()!!.m_SurfaseTexture?.updateTexImage()
-//                    (`object` as Object).notifyAll()
-//                    Log.d("requestRender","notifyAll")
-//                }
+                synchronized(`object`!!) {
+                    (`object` as Object).notifyAll()
+                    //Log.d("requestRender","notifyAll")
+                }
             }
         }
 

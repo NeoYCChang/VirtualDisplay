@@ -60,7 +60,7 @@ class AUORender : AUOGLSurfaceView.EGLRender {
         m_AUORenderCallback?.onDrawFrameCallback()
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, mTextureID)
         // Your OpenGL rendering code goes here
-        Log.d(m_tag, "onDrawFrame")
+        //Log.d(m_tag, "onDrawFrame")
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
 
