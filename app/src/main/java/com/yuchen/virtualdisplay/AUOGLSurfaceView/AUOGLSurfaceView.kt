@@ -1,28 +1,26 @@
 package com.yuchen.virtualdisplay.AUOGLSurfaceView
 
 import android.content.Context
-import android.util.AttributeSet
 import android.util.Log
+import android.view.MotionEvent
+import android.view.MotionEvent.PointerCoords
+import android.view.MotionEvent.PointerProperties
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import android.view.View
-import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomGLSurfaceViewCallback
-import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomRender
-import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomRenderCallback
-import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomSurfaceTexture
+import com.yuchen.virtualdisplay.AUOGLSurfaceView.AUORender.Texture_Size
 import java.lang.ref.WeakReference
 import javax.microedition.khronos.egl.EGLContext
 
 
-
 class AUOGLSurfaceView @JvmOverloads constructor(
-    context: Context ,textureid : Int, surfaseTexture: AUOSurfaceTexture?, width : Int, height : Int
+    context: Context ,textureid : Int, surfaseTexture: AUOSurfaceTexture?, displayWidth : Int, displayHeight : Int, isDeWarp: Boolean
 ) :
     SurfaceView(context), SurfaceHolder.Callback {
 
     interface AUOGLSurfaceViewCallback {
         fun onSurfaceCreatedCallback()
+        fun onTouchCallback(motionEvent: MotionEvent)
     }
     private var m_AUOGLSurfaceViewCallback: AUOGLSurfaceViewCallback? = null
     // The surface can be passed from outside
@@ -38,13 +36,18 @@ class AUOGLSurfaceView @JvmOverloads constructor(
 
     private var m_SurfaseTexture: AUOSurfaceTexture? = surfaseTexture
     private var m_textureid: Int = textureid
-    private val m_width = width
-    private val m_height = height
+    private val m_displayWidth = displayWidth
+    private val m_displayHeight = displayHeight
     private val m_context: Context = context
     private var m_SurfaceOfTexture: Surface? = null
     private var m_AUORender: AUORender?  = null
+    private var m_isDeWarp: Boolean = isDeWarp
     private val m_tag = "AUOGLSurfaceView"
     private var m_SurfaseTexture_createdByThis = false
+    private val mTextureSize : Texture_Size = Texture_Size(
+        960, 540, 0, 0,
+        960,540
+    )
     /**
      * Set render mode
      * 0 manual refresh
@@ -70,6 +73,13 @@ class AUOGLSurfaceView @JvmOverloads constructor(
     fun setSurfaceAndEglContext(surface: Surface?, eglContext: EGLContext?) {
         this.surface = surface
         this.eglContext = eglContext
+    }
+
+    fun setTextureCrop(offsetX: Int, offsetY: Int, width: Int, height: Int){
+        mTextureSize.offsetX = offsetX
+        mTextureSize.offsetY = offsetY
+        mTextureSize.cropWidth  = width
+        mTextureSize.cropHeight = height
     }
 
     fun requestRender() {
@@ -101,7 +111,7 @@ class AUOGLSurfaceView @JvmOverloads constructor(
         }
         val auoSurfaceView = this
         if(m_AUORender == null){
-            val render = AUORender(m_context, m_textureid)
+            val render = AUORender(m_context, m_textureid, m_isDeWarp)
             auoSurfaceView.setRender(render)
         }
         Log.d(m_tag,"surfaceCreated")
@@ -112,14 +122,19 @@ class AUOGLSurfaceView @JvmOverloads constructor(
                     m_textureid = m_AUORender!!.getTexture()
                     m_SurfaseTexture = AUOSurfaceTexture(m_textureid)
                     m_SurfaseTexture?.addListener { auoSurfaceView.requestRender() }
-                    m_SurfaseTexture?.setDefaultBufferSize(width, height)
+                    m_SurfaseTexture?.setDefaultBufferSize(m_displayWidth, m_displayHeight)
                     m_SurfaceOfTexture = Surface(m_SurfaseTexture)
                     m_SurfaseTexture_createdByThis = true
+                    mTextureSize.width = m_displayWidth
+                    mTextureSize.height = m_displayHeight
                 }
                 else{
                     Log.d(m_tag,"m_SurfaceTexture is from outside.")
                     m_SurfaseTexture?.addListener { auoSurfaceView.requestRender() }
+                    mTextureSize.width = m_SurfaseTexture!!.getWidth()
+                    mTextureSize.height = m_SurfaseTexture!!.getHeight()
                 }
+                m_AUORender!!.setTextureSize(mTextureSize)
                 m_AUOGLSurfaceViewCallback?.onSurfaceCreatedCallback()
             }
             override fun onDrawFrameCallback() {
@@ -150,6 +165,36 @@ class AUOGLSurfaceView @JvmOverloads constructor(
         surface = null
         eglContext = null
     }
+
+    // Override this method to handle touch events
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+
+        val pointerCount = event.pointerCount
+        val pointerProperties =
+            arrayOfNulls<PointerProperties>(pointerCount)
+        val pointerCoords = arrayOfNulls<PointerCoords>(pointerCount)
+        for (i in 0 until pointerCount) {
+            pointerProperties[i] = PointerProperties()
+            pointerProperties[i]!!.id = event.getPointerId(i)
+            pointerProperties[i]!!.toolType = event.getToolType(i)
+            pointerCoords[i] = PointerCoords()
+            pointerCoords[i]!!.x = event.getX(i) * mTextureSize.cropWidth / mTextureSize.width + mTextureSize.offsetX
+            pointerCoords[i]!!.y = event.getY(i) * mTextureSize.cropHeight / mTextureSize.height + mTextureSize.offsetY
+            pointerCoords[i]!!.pressure = event.getPressure(i)
+            pointerCoords[i]!!.size = event.getSize(i)
+        }
+
+        val newevent : MotionEvent = MotionEvent.obtain(
+            event.downTime, event.eventTime, event.action, event.pointerCount,
+            pointerProperties,pointerCoords,event.metaState,event.buttonState,
+            event.xPrecision,event.yPrecision,event.deviceId,event.edgeFlags,
+            event.source,event.flags
+        )
+
+        m_AUOGLSurfaceViewCallback?.onTouchCallback(newevent)
+        return true // Return true to indicate the event was handled
+    }
+
 
     fun getSurface(): Surface? {
         return surface

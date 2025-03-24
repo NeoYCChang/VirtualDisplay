@@ -1,12 +1,13 @@
 package com.yuchen.virtualdisplay
 
+import android.app.ActivityOptions
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,25 +15,22 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -40,10 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,19 +50,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.imageResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.google.accompanist.navigation.animation.AnimatedNavHost
 import com.google.accompanist.navigation.animation.composable
-import com.yuchen.virtualdisplay.GLVirtualDisplay.CustomVirtualDisplayService
-import com.yuchen.virtualdisplay.ui.theme.VirtualDisplayTheme
 import com.yuchen.virtualdisplay.AUOGLSurfaceView.AUOVirtualDisplayService
+import com.yuchen.virtualdisplay.ui.theme.VirtualDisplayTheme
 
 
 class MainActivity : ComponentActivity() {
@@ -101,12 +94,19 @@ class MainActivity : ComponentActivity() {
 
         // start requesting screen recording permission when user is ready
         startScreenCapturePermission()
+//        WindowCompat.setDecorFitsSystemWindows(window, true)
+//        window.decorView.systemUiVisibility =
+//            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+//                    android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+//                    android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
         enableEdgeToEdge()
         setContent {
             VirtualDisplayTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    NavigationExample(inputmodifier = Modifier.fillMaxWidth().padding(innerPadding)
+                    NavigationExample(inputmodifier = Modifier
+                        .fillMaxWidth()
+                        .padding(innerPadding)
                             ,onCreateVirtualDisplay = { param ->
                         createProjectionVirtualDisplay(param)
                     },
@@ -153,8 +153,8 @@ class MainActivity : ComponentActivity() {
 
         if (requestCode == REQUEST_CODE_SCREEN_CAPTURE) {
             if (resultCode == RESULT_OK) {
-                VirtualDisplayService.resultData = data
-                VirtualDisplayService.resultCode = resultCode
+                AUOVirtualDisplayService.resultData = data
+                AUOVirtualDisplayService.resultCode = resultCode
                 // start virtual display service
                 //val virtualdisplay_intent = Intent(this, VirtualDisplayService::class.java)
                 //val virtualdisplay_intent = Intent(this, CustomVirtualDisplayService::class.java)
@@ -175,10 +175,18 @@ class MainActivity : ComponentActivity() {
         val intent = Intent("com.yuchen.virtualdisplay.UPDATE_DATA")
         intent.putExtra("primary", true)
         intent.putExtra("displayID", param.id)
-        intent.putExtra("viewWidth", param.width)
-        intent.putExtra("viewHeight", param.height)
-        intent.putExtra("viewX", param.x)
-        intent.putExtra("viewY", param.y)
+        intent.putExtra("displayWidth", param.displayWidth)
+        intent.putExtra("displayHeight", param.displayHeight)
+        intent.putExtra("viewWidth", param.viewWidth)
+        intent.putExtra("viewHeight", param.viewHeight)
+        intent.putExtra("viewX", param.viewX)
+        intent.putExtra("viewY", param.viewY)
+        intent.putExtra("textureCropWidth", param.textureCropWidth)
+        intent.putExtra("textureCropHeight", param.textureCropHeight)
+        intent.putExtra("textureOffsetX", param.textureOffsetX)
+        intent.putExtra("textureOffsetY", param.textureOffsetY)
+        intent.putExtra("isDeWarp", param.isDeWarp)
+
         sendBroadcast(intent)
         Log.d("m_tag","createProjectionVirtualDisplay")
     }
@@ -186,10 +194,15 @@ class MainActivity : ComponentActivity() {
         val intent = Intent("com.yuchen.virtualdisplay.UPDATE_DATA")
         intent.putExtra("primary", false)
         intent.putExtra("displayID", param.id)
-        intent.putExtra("viewWidth", param.width)
-        intent.putExtra("viewHeight", param.height)
-        intent.putExtra("viewX", param.x)
-        intent.putExtra("viewY", param.y)
+        intent.putExtra("viewWidth", param.viewWidth)
+        intent.putExtra("viewHeight", param.viewHeight)
+        intent.putExtra("viewX", param.viewX)
+        intent.putExtra("viewY", param.viewY)
+        intent.putExtra("textureCropWidth", param.textureCropWidth)
+        intent.putExtra("textureCropHeight", param.textureCropHeight)
+        intent.putExtra("textureOffsetX", param.textureOffsetX)
+        intent.putExtra("textureOffsetY", param.textureOffsetY)
+        intent.putExtra("isDeWarp", param.isDeWarp)
         sendBroadcast(intent)
         Log.d("m_tag","createProjectionVirtualView")
     }
@@ -288,7 +301,8 @@ fun NavigationExample(inputmodifier: Modifier, onCreateVirtualDisplay: (VirtualV
 //    }
 //}
 
-data class VirtualViewParameter(var id: Int, var width: Int, var height: Int, var x: Int, var y: Int)
+data class VirtualViewParameter(var id: Int, var displayWidth: Int, var displayHeight: Int, var viewWidth: Int, var viewHeight: Int, var viewX: Int, var viewY: Int,
+                                var textureOffsetX: Int, var textureOffsetY: Int, var textureCropWidth: Int, var textureCropHeight: Int, var isDeWarp: Boolean)
 
 @Composable
 fun VirtualControl(navController: NavController, onCreateVirtualDisplay: (VirtualViewParameter) -> Unit,
@@ -309,11 +323,11 @@ fun VirtualControl(navController: NavController, onCreateVirtualDisplay: (Virtua
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(color = Color.hsv(106f, 0.43f,0.89f)),
+                .background(color = Color.hsv(106f, 0.43f, 0.89f)),
             horizontalAlignment = Alignment.Start)
         {
             Text(text = "Virtual Display")
-            VirtualView(navController, u_ViewParameters)
+            VirtualDisplay(navController, u_ViewParameters)
         }
         Divider(
             modifier = Modifier
@@ -326,7 +340,7 @@ fun VirtualControl(navController: NavController, onCreateVirtualDisplay: (Virtua
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(color = Color.hsv(23f, 0.43f,0.89f)),
+                    .background(color = Color.hsv(23f, 0.43f, 0.89f)),
                 horizontalAlignment = Alignment.Start)
             {
                 Text(text = "View: " + i.toString())
@@ -344,19 +358,22 @@ fun VirtualControl(navController: NavController, onCreateVirtualDisplay: (Virtua
 
 
 
-        IconButton(onClick = {
-            if(u_ViewParameters.size > u_count_views.value) {
-                if (!u_primaryCreated.value) {
-                    onCreateVirtualDisplay(u_ViewParameters[u_ViewParameters.size - 1].value)
-                    u_primaryCreated.value = true
+        IconButton(
+            onClick = {
+                if (u_ViewParameters.size > u_count_views.value) {
+                    if (!u_primaryCreated.value) {
+                        onCreateVirtualDisplay(u_ViewParameters[u_ViewParameters.size - 1].value)
+                        u_primaryCreated.value = true
+                    } else {
+                        onCreateVirtualView(u_ViewParameters[u_ViewParameters.size - 1].value)
+                    }
+                    u_count_views.value = u_count_views.value + 1
                 }
-                else{
-                    onCreateVirtualView(u_ViewParameters[u_ViewParameters.size - 1].value)
-                }
-                u_count_views.value = u_count_views.value+1
-            }
-        },modifier = Modifier.padding(10.dp).size(40.dp),
-            ) {
+            },
+            modifier = Modifier
+                .padding(10.dp)
+                .size(40.dp),
+        ) {
             Icon(bitmap = ImageBitmap.imageResource(id = R.drawable.add),
                 contentDescription = "add.icon",
                 modifier = Modifier.size(40.dp),
@@ -367,11 +384,12 @@ fun VirtualControl(navController: NavController, onCreateVirtualDisplay: (Virtua
 }
 
 @Composable
-fun VirtualView(navController: NavController, viewParams: MutableList<MutableState<VirtualViewParameter>>) {
+fun VirtualDisplay(navController: NavController, viewParams: MutableList<MutableState<VirtualViewParameter>>) {
     val availableDisplays = remember { mutableStateListOf<String>() }
     var expanded = remember { mutableStateOf(false) }
     val u_ViewParameter = remember { mutableStateOf<VirtualViewParameter>(
-        VirtualViewParameter(0,960,540, 0, 0)
+        VirtualViewParameter(0,960,540,960,540, 0, 0,
+                            0,0,960,540, false)
     ) }
     viewParams.addAll(listOf(u_ViewParameter))
 
@@ -398,7 +416,9 @@ fun VirtualView(navController: NavController, viewParams: MutableList<MutableSta
                         availableDisplays.clear()
                         availableDisplays.addAll(displays.map { it.displayId.toString() })
                     },
-                modifier = Modifier.fillMaxWidth(1.0f).align(Alignment.TopCenter)
+                modifier = Modifier
+                    .fillMaxWidth(1.0f)
+                    .align(Alignment.TopCenter)
 
             ) {
                 Text(text = "Select Display ID: " + u_ViewParameter.value.id.toString())
@@ -423,70 +443,378 @@ fun VirtualView(navController: NavController, viewParams: MutableList<MutableSta
         }
 
         TwoOfTextField(
-            leftvalue = u_ViewParameter.value.width.toString(),
-            leftlabel = "width",
+            leftvalue = u_ViewParameter.value.displayWidth.toString(),
+            leftlabel = "display width",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(displayWidth = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(displayWidth = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.displayHeight.toString(),
+            rightlabel = "display height",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(displayHeight = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(displayHeight = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
+
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.viewX.toString(),
+            leftlabel = "view x",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewX = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewX = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.viewY.toString(),
+            rightlabel = "view y",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewY = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewY = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
+
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.viewWidth.toString(),
+            leftlabel = "view width",
             leftonValueChange =  {newText ->
             if(newText.isNotEmpty()) {
                 if (newText.all { it.isDigit() }) {
                     if (newText.toInt() < 10000) {
-                        u_ViewParameter.value = u_ViewParameter.value.copy(width = newText.toInt())
+                        u_ViewParameter.value = u_ViewParameter.value.copy(viewWidth = newText.toInt())
                     } else {
-                        u_ViewParameter.value = u_ViewParameter.value.copy(width = 10000)
+                        u_ViewParameter.value = u_ViewParameter.value.copy(viewWidth = 10000)
                     }
                 }
             }
         },
-            rightvalue = u_ViewParameter.value.height.toString(),
-            rightlabel = "height",
+            rightvalue = u_ViewParameter.value.viewHeight.toString(),
+            rightlabel = "view height",
             rightonValueChange =  {newText ->
                 if(newText.isNotEmpty()) {
                     if (newText.all { it.isDigit() }) {
                         if (newText.toInt() < 10000) {
-                            u_ViewParameter.value = u_ViewParameter.value.copy(height = newText.toInt())
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewHeight = newText.toInt())
                         } else {
-                            u_ViewParameter.value = u_ViewParameter.value.copy(height = 10000)
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewHeight = 10000)
                         }
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth(1.0f).padding(vertical = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
         )
 
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         TwoOfTextField(
-            leftvalue = u_ViewParameter.value.x.toString(),
-            leftlabel = "x",
+            leftvalue = u_ViewParameter.value.textureOffsetX.toString(),
+            leftlabel = "texture x offset",
             leftonValueChange =  {newText ->
                 if(newText.isNotEmpty()) {
                     if (newText.all { it.isDigit() }) {
                         if (newText.toInt() < 10000) {
-                            u_ViewParameter.value = u_ViewParameter.value.copy(x = newText.toInt())
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetX = newText.toInt())
                         } else {
-                            u_ViewParameter.value = u_ViewParameter.value.copy(x = 10000)
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetX = 10000)
                         }
                     }
                 }
             },
-            rightvalue = u_ViewParameter.value.y.toString(),
-            rightlabel = "y",
+            rightvalue = u_ViewParameter.value.textureOffsetY.toString(),
+            rightlabel = "texture y offset",
             rightonValueChange =  {newText ->
                 if(newText.isNotEmpty()) {
                     if (newText.all { it.isDigit() }) {
                         if (newText.toInt() < 10000) {
-                            u_ViewParameter.value = u_ViewParameter.value.copy(y = newText.toInt())
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetY = newText.toInt())
                         } else {
-                            u_ViewParameter.value = u_ViewParameter.value.copy(y = 10000)
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetY = 10000)
                         }
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth(1.0f).padding(vertical = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.textureCropWidth.toString(),
+            leftlabel = "texture width crop",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropWidth = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropWidth = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.textureCropHeight.toString(),
+            rightlabel = "texture height crop",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropHeight = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropHeight = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text("dewarp?")
+            Checkbox(
+                checked = u_ViewParameter.value.isDeWarp,
+                onCheckedChange = { checked ->
+                    u_ViewParameter.value = u_ViewParameter.value.copy(isDeWarp = checked)
+                }
+            )
+        }
+
+    }
+}
+
+@Composable
+fun VirtualView(navController: NavController, viewParams: MutableList<MutableState<VirtualViewParameter>>) {
+    val availableDisplays = remember { mutableStateListOf<String>() }
+    var expanded = remember { mutableStateOf(false) }
+    val u_ViewParameter = remember { mutableStateOf<VirtualViewParameter>(
+        VirtualViewParameter(0,960,540,960,540, 0, 0,
+            0,0,960,540, false)
+    ) }
+    viewParams.addAll(listOf(u_ViewParameter))
+
+    val context = LocalContext.current
+    val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+
+
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(text = "Select a Display ID")
+
+        // Dropdown menu for display ID selection
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    expanded.value = !expanded.value
+                    // Get available displays
+                    val displays = displayManager.getDisplays()
+                    availableDisplays.clear()
+                    availableDisplays.addAll(displays.map { it.displayId.toString() })
+                },
+                modifier = Modifier
+                    .fillMaxWidth(1.0f)
+                    .align(Alignment.TopCenter)
+
+            ) {
+                Text(text = "Select Display ID: " + u_ViewParameter.value.id.toString())
+                // Dropdown menu
+                DropdownMenu(
+                    expanded = expanded.value,
+                    onDismissRequest = { expanded.value = false },
+                    modifier = Modifier.fillMaxWidth(0.8f)
+                ) {
+                    availableDisplays.forEach { displayID ->
+                        DropdownMenuItem(
+                            onClick = {
+                                u_ViewParameter.value = u_ViewParameter.value.copy(id = displayID.toInt())
+                                expanded.value = false
+                            },
+                            text = {Text(text = displayID, modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center)},
+                        )
+                    }
+                }
+            }
+        }
+
+
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.viewX.toString(),
+            leftlabel = "view x",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewX = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewX = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.viewY.toString(),
+            rightlabel = "view y",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewY = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewY = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
         )
 
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.viewWidth.toString(),
+            leftlabel = "view width",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewWidth = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewWidth = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.viewHeight.toString(),
+            rightlabel = "view height",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewHeight = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(viewHeight = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.textureOffsetX.toString(),
+            leftlabel = "texture x offset",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetX = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetX = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.textureOffsetY.toString(),
+            rightlabel = "texture y offset",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetY = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureOffsetY = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
+        TwoOfTextField(
+            leftvalue = u_ViewParameter.value.textureCropWidth.toString(),
+            leftlabel = "texture width crop",
+            leftonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropWidth = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropWidth = 10000)
+                        }
+                    }
+                }
+            },
+            rightvalue = u_ViewParameter.value.textureCropHeight.toString(),
+            rightlabel = "texture height crop",
+            rightonValueChange =  {newText ->
+                if(newText.isNotEmpty()) {
+                    if (newText.all { it.isDigit() }) {
+                        if (newText.toInt() < 10000) {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropHeight = newText.toInt())
+                        } else {
+                            u_ViewParameter.value = u_ViewParameter.value.copy(textureCropHeight = 10000)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth(1.0f)
+                .padding(vertical = 5.dp)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text("dewarp?")
+            Checkbox(
+                checked = u_ViewParameter.value.isDeWarp,
+                onCheckedChange = { checked ->
+                    u_ViewParameter.value = u_ViewParameter.value.copy(isDeWarp = checked)
+                }
+            )
+        }
+
 
     }
 }

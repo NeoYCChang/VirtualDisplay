@@ -25,6 +25,7 @@ import android.view.Display
 import android.view.Gravity
 import android.view.Surface
 import android.view.WindowManager
+import com.yuchen.virtualdisplay.AUOGLSurfaceView.AUOVirtualDisplayService
 import com.yuchen.virtualdisplay.VirtualDisplayService
 import com.yuchen.virtualdisplay.VirtualDisplayService.Companion
 
@@ -48,13 +49,12 @@ class CustomVirtualDisplayService : Service() {
         super.onCreate()
         startMediaProjectionForeground()
 
-        //  mirror primary display
-        if(m_isMirror) {
-            val MEDIA_PROJECTION_MANAGER =
-                getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            m_MediaProjection =
-                resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(resultCode, it) }
-        }
+        val MEDIA_PROJECTION_MANAGER =
+            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        m_MediaProjection =
+            AUOVirtualDisplayService.resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(
+                AUOVirtualDisplayService.resultCode, it) }
+        m_MediaProjection?.registerCallback(MEDIA_PROJECTION_CALLBACK, null)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

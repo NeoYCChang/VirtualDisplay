@@ -5,6 +5,15 @@ plugins {
 }
 
 android {
+    signingConfigs {
+        create("sa8295") {
+            storeFile =
+                file("D:\\YuChen\\Git\\Android\\keytool-importkeypair-master\\sa8295.keystore")
+            storePassword = "123456"
+            keyAlias = "platform"
+            keyPassword = "123456"
+        }
+    }
     namespace = "com.yuchen.virtualdisplay"
     compileSdk = 35
 
@@ -25,6 +34,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        create("sa8295") {
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("sa8295")
         }
     }
     compileOptions {
@@ -52,6 +65,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation("androidx.navigation:navigation-compose:2.5.0")
     implementation("com.google.accompanist:accompanist-navigation-animation:0.36.0") // Animation library
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.5.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

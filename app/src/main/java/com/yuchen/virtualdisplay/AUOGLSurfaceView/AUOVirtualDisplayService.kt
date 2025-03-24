@@ -2,6 +2,7 @@ package com.yuchen.virtualdisplay.AUOGLSurfaceView
 
 import android.R.attr.name
 import android.annotation.SuppressLint
+import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,6 +15,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.hardware.input.InputManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -25,8 +27,10 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.Gravity
-import android.view.View
+import android.view.InputEvent
+import android.view.MotionEvent
 import android.view.WindowManager
+import java.lang.reflect.Method
 
 
 class AUOVirtualDisplayService : Service() {
@@ -37,21 +41,38 @@ class AUOVirtualDisplayService : Service() {
     private val m_AUOGLSurfaceViews = mutableMapOf<WindowManager, ArrayList<AUOGLSurfaceView?>>()
     private var m_PrimarySurfaceView: AUOGLSurfaceView? = null
     val m_isMirror: Boolean = false
+    private var m_displayWidth = 1
+    private var m_displayHeight = 1
+    private var m_injectInputEventMethod : Method? = null
+    private var m_motionSetDisplayIdMethod : Method? = null
+    private var m_mainHandler : Handler? = null
+    private var m_inputManager: InputManager? = null
+    private var m_virtualDisplayID = 0
+
     private val m_tag = "AUOVirtualDisplayService"
     private val m_dataReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             var primary = intent.getBooleanExtra("primary", false)
             var displayID = intent.getIntExtra("displayID", -1)
+            var displayWidth = intent.getIntExtra("displayWidth", 960)
+            var displayHeight = intent.getIntExtra("displayHeight", 540)
             var viewWidth = intent.getIntExtra("viewWidth", 960)
             var viewHeight = intent.getIntExtra("viewHeight", 540)
             var viewX = intent.getIntExtra("viewX", 0)
             var viewY = intent.getIntExtra("viewY", 0)
+            var textureCropWidth = intent.getIntExtra("textureCropWidth", 960)
+            var textureCropHeight = intent.getIntExtra("textureCropHeight", 540)
+            var textureOffsetX = intent.getIntExtra("textureOffsetX", 0)
+            var textureOffsetY = intent.getIntExtra("textureOffsetY", 0)
+            var isDeWarp = intent.getBooleanExtra("isDeWarp", false)
             if(primary){
-                createProjectionVirtualDisplay(displayID, viewWidth, viewHeight, viewX, viewY)
+                createProjectionVirtualDisplay(displayID, displayWidth, displayHeight, viewWidth, viewHeight, viewX, viewY,
+                    textureOffsetX, textureOffsetY, textureCropWidth, textureCropHeight, isDeWarp)
             }
             else
             {
-                createProjectionVirtualView(displayID, viewWidth, viewHeight, viewX, viewY)
+                createProjectionVirtualView(displayID, viewWidth, viewHeight, viewX, viewY,
+                    textureOffsetX, textureOffsetY, textureCropWidth, textureCropHeight, isDeWarp)
             }
 
         }
@@ -68,13 +89,14 @@ class AUOVirtualDisplayService : Service() {
         val filter = IntentFilter("com.yuchen.virtualdisplay.UPDATE_DATA")
         registerReceiver(m_dataReceiver, filter, Context.RECEIVER_EXPORTED)
         startMediaProjectionForeground()
-        //  mirror primary display
-        if(m_isMirror) {
-            val MEDIA_PROJECTION_MANAGER =
-                getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            m_MediaProjection =
-                resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(resultCode, it) }
-        }
+
+        val MEDIA_PROJECTION_MANAGER =
+            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        m_MediaProjection =
+            AUOVirtualDisplayService.resultData?.let { MEDIA_PROJECTION_MANAGER.getMediaProjection(
+                AUOVirtualDisplayService.resultCode, it) }
+        m_MediaProjection?.registerCallback(MEDIA_PROJECTION_CALLBACK, null)
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -89,36 +111,116 @@ class AUOVirtualDisplayService : Service() {
 //        else{
 //            createProjectionVirtualDisplay(0, 960, 540)
 //        }
+
+        if(m_injectInputEventMethod == null) {
+            // 获取InputManager类
+            val inputManagerClass = Class.forName("android.hardware.input.InputManager")
+
+            // 获取injectInputEvent方法的Method对象
+            m_injectInputEventMethod = inputManagerClass.getMethod(
+                "injectInputEvent",
+                InputEvent::class.java,
+                Int::class.javaPrimitiveType
+            )
+        }
+
+        if(m_mainHandler == null){
+            m_mainHandler = Handler(Looper.getMainLooper())
+        }
+        if(m_inputManager == null){
+            m_inputManager = getSystemService(INPUT_SERVICE) as InputManager
+        }
         return super.onStartCommand(intent, flags, startId)
     }
 
-    fun createProjectionVirtualDisplay(displayid: Int, viewwidth: Int, viewheight: Int, viewx: Int, viewy: Int) {
+    fun createProjectionVirtualDisplay(displayid: Int, displaywidth: Int, displayheight: Int, viewwidth: Int, viewheight: Int, viewx: Int, viewy: Int,
+                                       textureOffsetX: Int, textureOffsetY: Int, textureCropWidth: Int, textureCropHeight: Int, isdewarp: Boolean) {
         val display_manager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val dm = DisplayMetrics()
         wm.getDefaultDisplay().getRealMetrics(dm)
 
+        m_displayWidth = displaywidth
+        m_displayHeight = displayheight
+
         m_PrimarySurfaceView = AUOGLSurfaceView(
             this,
             -1,
             null,
-            viewwidth,
-            viewheight
+            displaywidth,
+            displayheight,
+            isdewarp
         )
-        val context = this
-        val mainHandler = Handler(Looper.getMainLooper())
-
+        m_PrimarySurfaceView!!.setTextureCrop(textureOffsetX, textureOffsetY, textureCropWidth, textureCropHeight)
         // this callback will be invoked after m_AUOGLSurfaceView has been initialized
         val AUOGLSurfaceViewCallback = object : AUOGLSurfaceView.AUOGLSurfaceViewCallback {
             override fun onSurfaceCreatedCallback() {
                 m_virtual_display = display_manager.createVirtualDisplay(
                     "testvirtual",
-                    viewwidth,
-                    viewheight,
+                    displaywidth,
+                    displayheight,
                     dm.densityDpi,
                     m_PrimarySurfaceView?.getSurfceOfTexture(),
-                    0
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
                 )
+                m_virtualDisplayID = m_virtual_display!!.display.displayId
+
+//                val packageName =
+//                    "com.example.auocid"; // Replace with the actual package name of the app you want to open
+//                val intent: Intent? = getPackageManager().getLaunchIntentForPackage(packageName)
+//                val options = ActivityOptions.makeBasic().setLaunchDisplayId(m_virtualDisplayID)
+//                if (intent != null) {
+//                    intent!!.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
+//                    startActivity(intent, options.toBundle());
+//                }
+
+                //https://stackoverflow.com/questions/77524988/why-i-am-not-able-to-start-activity-on-virtualdisplay-created-in-the-same-applic
+                //https://blog.csdn.net/Sunxiaolin2016/article/details/117666719
+//                val package_name = "org.cid.example"
+//                val activity_path = "org.qtproject.qt.android.bindings.QtActivity"
+//                val intent2 = Intent()
+//                intent2.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK) //可选
+//                val comp = ComponentName(package_name, activity_path)
+//                intent2.setComponent(comp);
+//                val options : ActivityOptions = ActivityOptions.makeBasic()
+//                options.launchDisplayId = 26  // 這裡填你想指定的 DisplayId
+//                startActivity(intent2, options.toBundle())
+
+
+//                // Create a DOWN event
+//                val downEvent = MotionEvent.obtain(System.currentTimeMillis(), System.currentTimeMillis(),
+//                    MotionEvent.ACTION_DOWN, 100f, 200f, 0)
+//
+//                // Create a MOVE event
+//                val moveEvent = MotionEvent.obtain(downEvent) // Clone the DOWN event timestamp
+//                moveEvent.action = MotionEvent.ACTION_MOVE
+//                moveEvent.setLocation(200f, 300f) // New position during move
+//
+//                // Create an UP event
+//                val upEvent = MotionEvent.obtain(System.currentTimeMillis(), System.currentTimeMillis(),
+//                    MotionEvent.ACTION_UP, 200f, 300f, 0)
+//
+//                injectInputEventMethod!!.invoke(inputManager, downEvent, 0)
+//                injectInputEventMethod!!.invoke(inputManager, moveEvent, 0)
+//                injectInputEventMethod!!.invoke(inputManager, upEvent, 0)
+//
+
+
+//                // Create a MotionEvent of type ACTION_DOWN (finger touching the screen)
+//                val downTime = System.currentTimeMillis()  // The time the event started
+//                val eventTime = System.currentTimeMillis()  // The time the event occurred
+//                val x = 100f  // X-coordinate of the touch
+//                val y = 200f  // Y-coordinate of the touch
+//                val pointerId = 0  // Identifier for the touch pointer (useful for multitouch)
+//
+//                val motionevent: MotionEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, x, y, 0)
+//
+//                // 调用injectInputEvent方法，参数为InputEvent对象和注入模式
+//                injectInputEventMethod.invoke(inputManager, motionevent, 0)
+//                val virtualDisplayContext: Context = createDisplayContext(m_virtual_display!!.display)
+//                val displayInputManager = virtualDisplayContext.getSystemService(INPUT_SERVICE)
+
+
                 // create a second view mirrored by m_AUOGLSurfaceView
 //                m_AUOGLSurfaceView2 = AUOGLSurfaceView(
 //                    context,
@@ -142,6 +244,12 @@ class AUOVirtualDisplayService : Service() {
 //                    PROJECTION_VIEW_PARAMS.height = viewheight
 //                    displayWindowManager!!.addView(m_AUOGLSurfaceView2, PROJECTION_VIEW_PARAMS)
 //                }
+            }
+
+            override fun onTouchCallback(motionEvent: MotionEvent) {
+                m_mainHandler?.post {
+                    injectMotionEvent(motionEvent, m_virtualDisplayID)
+                }
             }
         }
         m_PrimarySurfaceView?.setAUOGLSurfaceViewCallback(AUOGLSurfaceViewCallback)
@@ -169,7 +277,6 @@ class AUOVirtualDisplayService : Service() {
         PROJECTION_VIEW_PARAMS.height = viewheight
         PROJECTION_VIEW_PARAMS.x = viewx
         PROJECTION_VIEW_PARAMS.y = viewy
-
         //After m_AUOGLSurfaceView is added to m_displayWindowManager, m_AUOGLSurfaceView will begin initialization.
         displayWindowManager!!.addView(m_PrimarySurfaceView, PROJECTION_VIEW_PARAMS)
         if( m_AUOGLSurfaceViews[displayWindowManager] == null) {
@@ -182,11 +289,35 @@ class AUOVirtualDisplayService : Service() {
         }
     }
 
-    fun createProjectionVirtualView(displayid: Int, viewwidth: Int, viewheight: Int, viewx: Int, viewy: Int) {
+    /**
+     * Injects a MotionEvent into the input event stream by setting its display ID and invoking the input manager.
+     *
+     * This method uses reflection to access the private `setDisplayId` method of the `MotionEvent` class
+     * and injects the MotionEvent into the input manager, simulating a touch event with a specified display ID.
+     *
+     * @param motionEvent the MotionEvent to be injected, which represents a touch or input event.
+     * @param displayid the ID of the display to associate the MotionEvent with, used to specify which screen the event is for.
+     */
+    private fun injectMotionEvent(motionEvent: MotionEvent, displayid: Int) {
+        if(m_motionSetDisplayIdMethod ==  null) {
+            // Get the MotionEvent class
+            val motionEventClass = MotionEvent::class.java
+            m_motionSetDisplayIdMethod = motionEventClass.getMethod(
+                "setDisplayId",
+                Int::class.java      // DisplayID
+            )
+        }
+        m_motionSetDisplayIdMethod!!.invoke(motionEvent, displayid)
+        m_injectInputEventMethod?.invoke(m_inputManager, motionEvent, 0)
+    }
+
+    fun createProjectionVirtualView(displayid: Int, viewwidth: Int, viewheight: Int, viewx: Int, viewy: Int,
+                                    textureOffsetX: Int, textureOffsetY: Int, textureCropWidth: Int, textureCropHeight: Int, isdewarp: Boolean) {
         val display_manager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val dm = DisplayMetrics()
         wm.getDefaultDisplay().getRealMetrics(dm)
+
 
         var AUOGLSurfaceView : AUOGLSurfaceView? = null
 
@@ -197,8 +328,9 @@ class AUOVirtualDisplayService : Service() {
                 this,
                 -1,
                 null,
-                viewwidth,
-                viewheight
+                m_displayWidth,
+                m_displayHeight,
+                isdewarp
             )
         }
         else
@@ -208,11 +340,26 @@ class AUOVirtualDisplayService : Service() {
                 this,
                 m_PrimarySurfaceView!!.getTextureID(),
                 m_PrimarySurfaceView?.getAUOSurfaceTexture(),
-                viewwidth,
-                viewheight
+                m_displayWidth,
+                m_displayHeight,
+                isdewarp
             )
             AUOGLSurfaceView?.setSurfaceAndEglContext(null, m_PrimarySurfaceView?.getEglContext())
         }
+        val AUOGLSurfaceViewCallback = object : AUOGLSurfaceView.AUOGLSurfaceViewCallback {
+            override fun onSurfaceCreatedCallback() {
+            }
+
+            override fun onTouchCallback(motionEvent: MotionEvent) {
+                m_mainHandler?.post {
+                    injectMotionEvent(motionEvent, m_virtualDisplayID)
+                }
+            }
+        }
+        AUOGLSurfaceView?.setAUOGLSurfaceViewCallback(AUOGLSurfaceViewCallback)
+
+
+        AUOGLSurfaceView!!.setTextureCrop(textureOffsetX, textureOffsetY, textureCropWidth, textureCropHeight)
 
 
         val display : Display = display_manager.getDisplay(displayid)
