@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.5.0")
     implementation("com.google.accompanist:accompanist-navigation-animation:0.36.0") // Animation library
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.5.0")
+    implementation("org.java-websocket:Java-WebSocket:1.5.3")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

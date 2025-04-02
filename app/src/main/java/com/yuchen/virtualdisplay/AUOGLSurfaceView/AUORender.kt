@@ -22,7 +22,6 @@ class AUORender : AUOGLSurfaceView.EGLRender {
 
     interface AUORenderCallback {
         fun onSurfaceCreatedCallback()
-        fun onDrawFrameCallback()
     }
 
     data class Texture_Size(var width: Int, var height: Int, var offsetX: Int, var offsetY: Int,
@@ -31,10 +30,7 @@ class AUORender : AUOGLSurfaceView.EGLRender {
     data class Render_Parameters(val vertices : ArrayList<Float>, val textcoods : ArrayList<Float>,
                                  var column : Int, var row : Int, var countOfTriangles: Int)
 
-    companion object {
-        // Static-like function
-        val mutex : ReentrantLock = ReentrantLock()
-    }
+    private var index: Int = 0
 
     private var m_AUORenderCallback: AUORenderCallback? = null
     private var mProgram: Int = 0
@@ -102,23 +98,21 @@ class AUORender : AUOGLSurfaceView.EGLRender {
     // Implement the onDrawFrame() method
     override fun onDrawFrame() {
         // Clear the screen with the background color
-        mutex.withLock {
-            GLES20.glUseProgram(mProgram)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, mVBO)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, mEBO)
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-            GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // Set background color to black
-            m_AUORenderCallback?.onDrawFrameCallback()
-            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, mTextureID)
-            // Your OpenGL rendering code goes here
-            //Log.d(m_tag, "onDrawFrame")
-            //GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-            GLES20.glDrawElements(GLES20.GL_TRIANGLES, m_render_parameters.countOfTriangles, GLES20.GL_UNSIGNED_INT, 0)
-            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
-            GLES20.glFinish();
-        }
+        GLES20.glUseProgram(mProgram)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, mVBO)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, mEBO)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f) // Set background color to black
+        //m_AUORenderCallback?.onDrawFrameCallback()
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, mTextureID)
+        // Your OpenGL rendering code goes here
+        //Log.d(m_tag, "onDrawFrame")
+        //GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, m_render_parameters.countOfTriangles, GLES20.GL_UNSIGNED_INT, 0)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES20.glFinish();
     }
 
     fun setCustomRenderCallback(callback: AUORenderCallback) {

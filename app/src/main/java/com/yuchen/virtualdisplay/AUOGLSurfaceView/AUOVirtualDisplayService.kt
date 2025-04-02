@@ -8,6 +8,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -30,6 +31,7 @@ import android.view.Gravity
 import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import com.yuchen.virtualdisplay.AUOScreenMirroring.AUOMirrorManager
 import java.lang.reflect.Method
 
 
@@ -48,6 +50,8 @@ class AUOVirtualDisplayService : Service() {
     private var m_mainHandler : Handler? = null
     private var m_inputManager: InputManager? = null
     private var m_virtualDisplayID = 0
+    private var m_auoMirrorManager: AUOMirrorManager? = null
+    private var m_auoMirrorSurfaceView: AUOGLSurfaceView? = null
 
     private val m_tag = "AUOVirtualDisplayService"
     private val m_dataReceiver = object : BroadcastReceiver() {
@@ -165,6 +169,11 @@ class AUOVirtualDisplayService : Service() {
                 )
                 m_virtualDisplayID = m_virtual_display!!.display.displayId
 
+                m_mainHandler!!.post {
+                    createMirrorVirtualView(viewwidth,viewheight,textureOffsetX,textureOffsetY,
+                        textureCropWidth,textureCropHeight,isdewarp)
+                }
+
 //                val packageName =
 //                    "com.example.auocid"; // Replace with the actual package name of the app you want to open
 //                val intent: Intent? = getPackageManager().getLaunchIntentForPackage(packageName)
@@ -176,14 +185,15 @@ class AUOVirtualDisplayService : Service() {
 
                 //https://stackoverflow.com/questions/77524988/why-i-am-not-able-to-start-activity-on-virtualdisplay-created-in-the-same-applic
                 //https://blog.csdn.net/Sunxiaolin2016/article/details/117666719
-//                val package_name = "org.cid.example"
-//                val activity_path = "org.qtproject.qt.android.bindings.QtActivity"
+                //permissions: https://blog.csdn.net/Sunxiaolin2016/article/details/117666719
+//                val package_name = "com.YourCompany.AndroidQuickStart"
+//                val activity_path = "com.epicgames.unreal.GameActivity"
 //                val intent2 = Intent()
-//                intent2.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK) //可选
+//                intent2.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 //                val comp = ComponentName(package_name, activity_path)
 //                intent2.setComponent(comp);
 //                val options : ActivityOptions = ActivityOptions.makeBasic()
-//                options.launchDisplayId = 26  // 這裡填你想指定的 DisplayId
+//                options.launchDisplayId = m_virtualDisplayID  // Here, fill in the DisplayId you want to specify.
 //                startActivity(intent2, options.toBundle())
 
 
@@ -383,6 +393,32 @@ class AUOVirtualDisplayService : Service() {
         }
     }
 
+    fun createMirrorVirtualView(viewwidth: Int, viewheight: Int,
+                                    textureOffsetX: Int, textureOffsetY: Int, textureCropWidth: Int, textureCropHeight: Int, isdewarp: Boolean) {
+
+        if(m_PrimarySurfaceView != null)
+        {
+            Log.d(m_tag,"create Mirror VirtualView with m_PrimarySurfaceView")
+            m_auoMirrorSurfaceView = AUOGLSurfaceView(
+                this,
+                m_PrimarySurfaceView!!.getTextureID(),
+                m_PrimarySurfaceView?.getAUOSurfaceTexture(),
+                m_displayWidth,
+                m_displayHeight,
+                isdewarp
+            )
+            m_auoMirrorManager = AUOMirrorManager(viewwidth, viewheight)
+            m_auoMirrorSurfaceView!!.setSurfaceAndEglContext(m_auoMirrorManager!!.getSurface(), m_PrimarySurfaceView?.getEglContext())
+            m_auoMirrorSurfaceView!!.setTextureCrop(textureOffsetX, textureOffsetY, textureCropWidth, textureCropHeight)
+            m_auoMirrorSurfaceView!!.auosurfaceCreated(null)
+
+            m_auoMirrorManager!!.start()
+        }
+
+
+
+    }
+
     override fun onBind(intent: Intent): IBinder {
         TODO("Return the communication channel to the service.")
     }
@@ -402,6 +438,7 @@ class AUOVirtualDisplayService : Service() {
                 Log.d("removeViewImmediate","removeViewImmediate")
             }
         }
+        m_auoMirrorManager?.close()
         unregisterReceiver(m_dataReceiver)
         this.stopForeground(true)
     }

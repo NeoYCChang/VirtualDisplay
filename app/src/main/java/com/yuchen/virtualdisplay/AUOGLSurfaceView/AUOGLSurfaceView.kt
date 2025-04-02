@@ -10,12 +10,16 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.yuchen.virtualdisplay.AUOGLSurfaceView.AUORender.Texture_Size
 import java.lang.ref.WeakReference
+import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
 import javax.microedition.khronos.egl.EGLContext
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 
 class AUOGLSurfaceView @JvmOverloads constructor(
     context: Context ,textureid : Int, surfaseTexture: AUOSurfaceTexture?, displayWidth : Int, displayHeight : Int, isDeWarp: Boolean
-) :
+    ) :
     SurfaceView(context), SurfaceHolder.Callback {
 
     interface AUOGLSurfaceViewCallback {
@@ -106,8 +110,15 @@ class AUOGLSurfaceView @JvmOverloads constructor(
 
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        auosurfaceCreated(holder)
+    }
+
+    fun auosurfaceCreated(holder: SurfaceHolder?) {
         if (surface == null) {
-            surface = holder.surface
+            surface = holder?.surface
+        }
+        if (surface == null) {
+            return
         }
         val auoSurfaceView = this
         if(m_AUORender == null){
@@ -136,12 +147,6 @@ class AUOGLSurfaceView @JvmOverloads constructor(
                 }
                 m_AUORender!!.setTextureSize(mTextureSize)
                 m_AUOGLSurfaceViewCallback?.onSurfaceCreatedCallback()
-            }
-            override fun onDrawFrameCallback() {
-                if(m_SurfaseTexture_createdByThis) {
-                    m_SurfaseTexture?.updateTexImage()
-                    //Log.d(m_tag, "onDrawFrameCallback")
-                }
             }
         }
         m_AUORender?.setCustomRenderCallback(drawFrameCallback)
@@ -178,8 +183,8 @@ class AUOGLSurfaceView @JvmOverloads constructor(
             pointerProperties[i]!!.id = event.getPointerId(i)
             pointerProperties[i]!!.toolType = event.getToolType(i)
             pointerCoords[i] = PointerCoords()
-            pointerCoords[i]!!.x = event.getX(i) * mTextureSize.cropWidth / mTextureSize.width + mTextureSize.offsetX
-            pointerCoords[i]!!.y = event.getY(i) * mTextureSize.cropHeight / mTextureSize.height + mTextureSize.offsetY
+            pointerCoords[i]!!.x = event.getX(i) * (mTextureSize.cropWidth-1) / (this.width-1) + mTextureSize.offsetX
+            pointerCoords[i]!!.y = event.getY(i) * (mTextureSize.cropHeight-1) / (this.height-1) + mTextureSize.offsetY
             pointerCoords[i]!!.pressure = event.getPressure(i)
             pointerCoords[i]!!.size = event.getSize(i)
         }
@@ -222,6 +227,11 @@ class AUOGLSurfaceView @JvmOverloads constructor(
         var isChange: Boolean = false
         private var isStart = false
 
+        companion object {
+            // Static-like function
+            private val  m_ReadWriteLock: ReentrantReadWriteLock = ReentrantReadWriteLock()
+        }
+
         // Used to control manual refresh
         private var `object`: Any? = null
         var width: Int = 0
@@ -249,11 +259,12 @@ class AUOGLSurfaceView @JvmOverloads constructor(
                 if (myGlSurfaceViewWeakReference!!.get()!!.renderMode == RenderMode.RENDERMODE_WHEN_DIRTY) {
                     synchronized(`object`!!) {
                         try {
-                            (`object` as Object).wait((1000 / 60).toLong())
+                            (`object` as Object).wait((1000.0f / 60.0f).toLong())
                         } catch (e: InterruptedException) {
                             e.printStackTrace()
                         }
                     }
+                    onUpdateTexure()
                     onChange(width, height)
                     onDraw()
                     isStart = true
@@ -264,6 +275,7 @@ class AUOGLSurfaceView @JvmOverloads constructor(
                     } catch (e: InterruptedException) {
                         e.printStackTrace()
                     }
+                    onUpdateTexure()
                     onChange(width, height)
                     onDraw()
                     isStart = true
@@ -294,17 +306,28 @@ class AUOGLSurfaceView @JvmOverloads constructor(
             }
         }
 
+
+        private fun onUpdateTexure() {
+            if (myGlSurfaceViewWeakReference!!.get()!!.m_SurfaseTexture_createdByThis) {
+                m_ReadWriteLock.write {
+                    myGlSurfaceViewWeakReference!!.get()!!.m_SurfaseTexture?.updateTexImage()
+                }
+            }
+        }
+
         /**
          * Draw, execute every loop
          */
         private fun onDraw() {
             if (myGlSurfaceViewWeakReference!!.get()!!.m_AUORender != null && eglHelper != null) {
-                myGlSurfaceViewWeakReference!!.get()!!.m_AUORender!!.onDrawFrame()
-                //The first time you refresh, you need to refresh twice.
-                if (!isStart) {
+                m_ReadWriteLock.read {
                     myGlSurfaceViewWeakReference!!.get()!!.m_AUORender!!.onDrawFrame()
+                    //The first time you refresh, you need to refresh twice.
+                    if (!isStart) {
+                        myGlSurfaceViewWeakReference!!.get()!!.m_AUORender!!.onDrawFrame()
+                    }
+                    eglHelper?.swapBuffers()
                 }
-                eglHelper?.swapBuffers()
             }
         }
 
