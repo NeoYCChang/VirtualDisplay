@@ -5,6 +5,7 @@
 4.  The H.265 stream is transmitted to clients(https://github.com/NeoYCChang/MirrorProjection) through a WebSocket connection.
 
 The first click initializes a VirtualDisplay and a SurfaceView to display its content, as well as an H.265 encoder and a WebSocket server.
+
 ![Before_click.png](https://github.com/NeoYCChang/VirtualDisplay/blob/master/IMG/Before_click.png)
 
 ![After_click.png](https://github.com/NeoYCChang/VirtualDisplay/blob/master/IMG/After_click.png)
